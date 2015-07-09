@@ -436,11 +436,11 @@ void print_rr_section(dns_rr * next, char * name, config * conf) {
                                                     next->cls, data);
                 else
                     // Print the string rtype name with the rest of the record.
-                    printf(" %s %s %s", name, next->rr_name, data);
+                    printf(" %s %s %s %i", name, next->rr_name, data, next->ttl);
             } else
                 // The -r option case. 
                 // Print the rtype and class number with the record.
-                printf(" %s %d %d %s", name, next->type, next->cls, data);
+                printf(" %s %d %d %s %i", name, next->type, next->cls, data, next->ttl);
         }
         next = next->next; 
     }
