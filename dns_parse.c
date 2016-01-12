@@ -873,7 +873,7 @@ int check_ignore(char ** ignore_domains, dns_question * qnext) {
     while (ignore && *ignore) {
         if ((*ignore)[0] == '^') {
             // 1:1 matching is required
-            if (!strcmp((*ignore)+1, qry))
+            if (!strcasecmp((*ignore)+1, qry))
                 return 1;
         } else {
             // true sub-domains need to be matched _ALSO_
