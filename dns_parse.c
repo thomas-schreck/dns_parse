@@ -884,7 +884,7 @@ int check_ignore(char ** ignore_domains, dns_question * qnext) {
                 // qry == domain.tld case
                 if (qs == is) return 1;
                 // qry == _.domain.tld case (but not .domain.tld)
-                if (qs-1 > is) return (qry[qs-is-1] == '.');
+                if (qs-1 > is && qry[qs-is-1] == '.') return 1;
             }
         }
         ignore++;
