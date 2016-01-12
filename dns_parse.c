@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
         "-n\n"
         "   Enable the parsing and output of the Name Server\n"
         "   Records section. Disabled by default.\n"
-        "-i <-|ignorefiles>\n"
+        "-i <-|ignorefile>\n"
         "   Ignore requests for domains listed in the file specified.\n"
         "   Two modes are supported. Strict matching with a caret prefix,\n"
         "   e.g. ^sub1.example.com. (Sub)domain matching with e.g. example.com\n"
