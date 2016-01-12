@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "network.h"
 #include "tcp.h"
@@ -33,7 +35,7 @@ int main(int argc, char **argv) {
     int c;
     int arg_failure = 0;
 
-    const char * OPTIONS = "cdfhm:MnrtD:x:s:S";
+    const char * OPTIONS = "cdfhi:m:MnrtD:x:s:S";
 
     // Setting configuration defaults.
     uint8_t TCP_SAVE_STATE = 1;
@@ -49,6 +51,7 @@ int main(int argc, char **argv) {
     conf.TCP_STATE_PATH = NULL;
     conf.DEDUPS = 10;
     conf.dedup_pos = 0;
+    conf.IGNORE_DOMAINS = NULL;
 
     c = getopt(argc, argv, OPTIONS);
     while (c != -1) {
@@ -89,6 +92,12 @@ int main(int argc, char **argv) {
                 if (conf.DEDUPS > 10000) {
                     conf.DEDUPS = 10000;
                 }
+                break;
+            case 'i':
+                if (optarg)
+                    conf.IGNORE_DOMAINS = read_ignore(optarg);
+                else
+                    arg_failure = 1;
                 break;
             case 'x':
                 if (conf.EXCLUDES < MAX_EXCLUDES) {
@@ -359,6 +368,9 @@ void print_summary(ip_info * ip, transport_info * trns, dns_info * dns,
     uint32_t dnslength;
     dns_question *qnext;
 
+    if (dns->queries != NULL && check_ignore(conf->IGNORE_DOMAINS, dns->queries))
+        goto done;
+
     print_ts(&(header->ts), conf);
 
     // Print the transport protocol indicator.
@@ -395,6 +407,9 @@ void print_summary(ip_info * ip, transport_info * trns, dns_info * dns,
         } else
             printf("%s %d %d", qnext->name, qnext->type, qnext->cls);
         qnext = qnext->next; 
+        if (conf->IGNORE_DOMAINS && qnext) {
+            VERBOSE(printf("There were multiple queries within one request. Only the first one was used for filtering!\n");)
+        }
     }
 
     // Print it resource record type in turn (for those enabled).
@@ -404,7 +419,8 @@ void print_summary(ip_info * ip, transport_info * trns, dns_info * dns,
     if (conf->AD_ENABLED) 
         print_rr_section(dns->additional, "+", conf);
     printf("%c%s\n", conf->SEP, conf->RECORD_SEP);
-    
+
+done:
     dns_question_free(dns->queries);
     dns_rr_free(dns->answers);
     dns_rr_free(dns->name_servers);
@@ -784,4 +800,94 @@ uint32_t dns_parse(uint32_t pos, struct pcap_pkthdr *header,
                            dns->arcount, &(dns->additional), conf);
     } else dns->additional = NULL;
     return pos;
+}
+
+char **read_ignore(char * d) {
+    FILE * fd = NULL;
+    char **ignore = NULL;
+
+    size_t nbytes, entry;
+    ssize_t rbytes;
+    size_t growby, limit;
+
+    growby = limit = 256;
+    nbytes = entry = 0;
+    //assert(limit > entry);
+
+    if (!d)
+        return NULL;
+
+    errno = 0;
+    if (!strcmp("-", d)) {
+        fd = stdin;
+    } else {
+        fd = fopen(d, "r");
+        if (!fd) {
+            fprintf(stderr, "dns_parse: error opening ignore list. %s\n", strerror(errno));
+            return NULL;
+        }
+    }
+
+    ignore = calloc(1, limit * sizeof(*ignore));
+
+    while ((rbytes = getline(&(ignore[entry]), &nbytes, fd)) != -1) {
+        // start scanning one char _before_ the terminating \0
+        while (rbytes >= 1 && ISBREAK(ignore[entry][rbytes-1])) {
+            // this wastes ~one byte per line; alternative: one realloc() per line
+            ignore[entry][--rbytes] = '\0';
+        }
+
+        entry++;
+        nbytes = 0;
+
+        if (entry >= limit - 1) {
+            limit += growby;
+            ignore = realloc(ignore, limit * sizeof(*ignore));
+        }
+    }
+
+    if (entry) {
+        ignore = realloc(ignore, (entry+1) * sizeof(*ignore));
+        ignore[entry] = NULL;
+    } else {
+        free(ignore);
+        ignore = NULL;
+    }
+
+
+    if (fd && fd != stdin)
+        fclose(fd);
+
+    return ignore;
+}
+
+int check_ignore(char ** ignore_domains, dns_question * qnext) {
+    char ** ignore = ignore_domains;
+    char * qry;
+
+    if (!qnext || !(qnext->name))
+        return 0;
+
+    qry = qnext->name;
+
+    while (ignore && *ignore) {
+        if ((*ignore)[0] == '^') {
+            // 1:1 matching is required
+            if (!strcmp((*ignore)+1, qry))
+                return 1;
+        } else {
+            // true sub-domains need to be matched _ALSO_
+            int qs = strlen(qry);
+            int is = strlen(*ignore);
+
+            if (qs >= is && !strcmp(&qry[qs-is], *ignore)) {
+                // qry == domain.tld case
+                if (qs == is) return 1;
+                // qry == _.domain.tld case (but not .domain.tld)
+                if (qs-1 > is) return (qry[qs-is-1] == '.');
+            }
+        }
+        ignore++;
+    }
+    return 0;
 }

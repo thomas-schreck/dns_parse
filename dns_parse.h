@@ -29,6 +29,8 @@
 // Get the DNS tcp length prepended field.
 #define TCP_DNS_LEN(P,O) ((P[O]<<8) + P[O+1])
 
+#define ISBREAK(x) (x == '\r' || x == '\n')
+
 // Pre-declarations.
 struct tcp_info;
 struct ip_fragment;
@@ -55,6 +57,7 @@ typedef struct {
     struct ip_fragment * ip_fragment_head;
     unsigned long long * dedup_hashes;
     uint32_t dedup_pos;
+    char ** IGNORE_DOMAINS;
 } config;
 
 // Holds the information for a dns question.
@@ -128,4 +131,8 @@ void print_packet(uint32_t max_len, uint8_t *packet,
 
 // Print the given timestamp out on the given file*, as configured.
 void print_ts(struct timeval *, config *);
+// parse the ignore domains file given with the -i flag
+char ** read_ignore(char * d);
+// check the first query in qn
+int check_ignore(char ** ignore_domains, dns_question * qnext);
 #endif
