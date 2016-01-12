@@ -885,7 +885,7 @@ int check_ignore(char ** ignore_domains, dns_question * qnext) {
             int qs = strlen(qry);
             int is = strlen(*ignore);
 
-            if (qs >= is && !strcmp(&qry[qs-is], *ignore)) {
+            if (qs >= is && !strcasecmp(&qry[qs-is], *ignore)) {
                 // qry == domain.tld case
                 if (qs == is) return 1;
                 // qry == _.domain.tld case (but not .domain.tld)
