@@ -565,7 +565,6 @@ void tcp_save_state(config * conf) {
 
     if (outfile == NULL) {
         fprintf(stderr, "Could not open tcp state file.\n");
-        fclose(outfile);
         return;
     }
 
